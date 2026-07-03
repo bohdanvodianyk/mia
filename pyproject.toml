@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mia"
+version = "0.0.1"
+description = "Mia — a single-user personal AI assistant that lives in Telegram."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Bohdan" }]
+
+# Phase 0 needs only typed config. Provider SDKs (anthropic, openai,
+# python-telegram-bot, google-*) are added by the phase that first uses them,
+# per the plan's "no early scaffolding" rule.
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5",
+    "pytest>=8.2",
+]
+
+[project.scripts]
+mia = "mia.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mia = ["memory/*.sql"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
