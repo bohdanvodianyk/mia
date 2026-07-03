@@ -1,9 +1,9 @@
 # Personal AI Assistant — Development Plan v2
 
-**Codename:** `aide` (rename freely)
+**Codename:** `mia` — "Mi IA" (renamed from `aide`, 2026-07-02)
 **Owner:** Bohdan
 **Builder:** Claude Code
-**Status:** Phase 0 not started
+**Status:** Phase 0 complete — Gate G0 passed (2026-07-02)
 **Last updated:** 2026-07-01 (v2.1 — full scope added, organized in two waves)
 **Supersedes:** v1, v2 (adds quick-capture, photo input, arXiv digest to Wave 1; promotes all backlog items to gated Wave 2 phases)
 
@@ -180,12 +180,19 @@ Each phase ends with an **acceptance gate**. Do not start the next phase until i
 
 ### Phase 0 — Scaffold (0.5 day)
 
-- [ ] Repo init; `pyproject.toml`; ruff + pytest
-- [ ] Typed config; `.env.example` with all secrets (Anthropic, OpenAI, Telegram, Google)
-- [ ] SQLite schema, idempotent migration on startup
-- [ ] Structured logging to file + stdout; `events_log` table wired
+- [x] Repo init; `pyproject.toml`; ruff + pytest
+- [x] Typed config; `.env.example` with all secrets (Anthropic, OpenAI, Telegram, Google)
+- [x] SQLite schema, idempotent migration on startup
+- [x] Structured logging to file + stdout; `events_log` table wired
 
-**Gate G0:** `python -m aide.main --check` boots, creates DB, logs redacted config, exits 0.
+**Gate G0:** `python -m mia.main --check` boots, creates DB, logs redacted config, exits 0. ✅ **PASSED 2026-07-02**
+
+**Build log / deviations from plan:**
+- Codename `aide` → `mia`.
+- Dependency isolation via a dedicated **conda** env `mia` (Python 3.12.13), per owner preference, instead of a plain venv.
+- Only Phase 0 deps installed (`pydantic-settings`; dev: `ruff`, `pytest`); provider SDKs deferred to the phase that first uses them.
+- Secrets kept `SecretStr`; `--check` logs a redacted summary (set/unset), never cleartext.
+- `events_log` wired both via a `db.log_event()` helper and a WARNING+ logging handler (`EventsLogHandler`).
 
 ### Phase 1 — Telegram ⇄ Claude core + comfort UX (1.5 days)
 
