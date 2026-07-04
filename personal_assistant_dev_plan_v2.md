@@ -3,7 +3,7 @@
 **Codename:** `mia` — "Mi IA" (renamed from `aide`, 2026-07-02)
 **Owner:** Bohdan
 **Builder:** Claude Code
-**Status:** Phase 0 complete — Gate G0 passed (2026-07-02)
+**Status:** Phase 1 complete — Gate G1 passed (2026-07-03)
 **Last updated:** 2026-07-01 (v2.1 — full scope added, organized in two waves)
 **Supersedes:** v1, v2 (adds quick-capture, photo input, arXiv digest to Wave 1; promotes all backlog items to gated Wave 2 phases)
 
@@ -196,18 +196,29 @@ Each phase ends with an **acceptance gate**. Do not start the next phase until i
 
 ### Phase 1 — Telegram ⇄ Claude core + comfort UX (1.5 days)
 
-- [ ] Bot via BotFather; long-polling
-- [ ] **Owner lock:** all non-owner chat IDs silently ignored (non-negotiable, first commit of this phase)
-- [ ] Agent core: system prompt + session history → Sonnet → reply
-- [ ] Haiku router: trivial messages (greetings, quick facts) skip the tool loop
-- [ ] **Latency feedback:** immediate typing action; >5s → editable progress message
-- [ ] **Auto-sessions:** new session after 2h inactivity; `/reset` manual override
-- [ ] **Language mirroring** (UA/EN/ES) in system prompt
-- [ ] Reply-length discipline in system prompt (≤ ~8 lines for chat answers)
-- [ ] `/start`, `/help` (with 6 concrete example requests), `/usage`
-- [ ] Token + cost logging per provider
+- [x] Bot via BotFather; long-polling
+- [x] **Owner lock:** all non-owner chat IDs silently ignored (non-negotiable, first commit of this phase)
+- [x] Agent core: system prompt + session history → Sonnet → reply
+- [x] Haiku router: trivial messages (greetings, quick facts) skip the tool loop
+- [x] **Latency feedback:** immediate typing action; >5s → editable progress message
+- [x] **Auto-sessions:** new session after 2h inactivity; `/reset` manual override
+- [x] **Language mirroring** (UA/EN/ES) in system prompt
+- [x] Reply-length discipline in system prompt (≤ ~8 lines for chat answers)
+- [x] `/start`, `/help` (with 6 concrete example requests), `/usage`
+- [x] Token + cost logging per provider
 
-**Gate G1:** Multi-turn conversation feels responsive (visible feedback within 1s always). Stranger messages ignored. Ask in Spanish → Spanish answer. `/usage` shows real costs.
+**Gate G1:** Multi-turn conversation feels responsive (visible feedback within 1s always). Stranger messages ignored. Ask in Spanish → Spanish answer. `/usage` shows real costs. ✅ **PASSED 2026-07-03**
+
+**Build log / deviations from plan:**
+- Deps added to §2 stack: `anthropic>=0.49`, `python-telegram-bot>=21`. Calls use
+  `AsyncAnthropic` so the Claude request never blocks the bot's event loop.
+- Owner lock implemented as a `filters.User(owner_id)` on every handler — non-owner
+  updates match no handler and are dropped with zero side effects.
+- Phase 1 has no tools yet, so the "skip the tool loop" router simply routes trivial
+  messages to Haiku for the answer and everything else to Sonnet; both paths log
+  token cost. Thinking is omitted on Sonnet 4.6 (runs thinking-off) for snappy chat.
+- Models kept as planned (`claude-sonnet-4-6` / `claude-haiku-4-5`); both verified
+  live. Sonnet 5 noted as a same-price drop-in option, deferred to owner.
 
 ### Phase 2 — Voice input (0.5–1 day)
 

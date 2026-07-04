@@ -26,8 +26,48 @@ python -m mia.main --check ; echo "exit=$?"
 
 ## Gate G1 — Telegram ⇄ Claude core (Phase 1)
 
-_To be filled when Phase 1 is built._ Multi-turn conversation feels responsive
-(visible feedback within 1s always); stranger messages ignored; ask in Spanish →
-Spanish answer; `/usage` shows real costs.
+### Prerequisites (one-time)
+
+- Create a bot with **@BotFather**; put the token in `.env` as `TELEGRAM_BOT_TOKEN`.
+- Get your numeric id from **@userinfobot**; set `OWNER_TELEGRAM_ID` in `.env`.
+- `ANTHROPIC_API_KEY` set in `.env`.
+
+### Automated pre-checks
+
+```bash
+conda activate mia
+pip install -e ".[dev]"
+ruff check .
+pytest
+```
+
+Both must be green (offline unit tests: sessions, cost, splitting, prompts).
+
+### Run the bot
+
+```bash
+python -m mia.main        # starts long-polling; Ctrl-C to stop
+```
+
+### Manual acceptance script (in Telegram)
+
+1. **Feedback speed** — send "Give me three ideas for a weekend project."
+   The typing indicator must appear within ~1s; a longer answer may briefly show
+   "One moment…" that then becomes the reply. → responsiveness ✅
+2. **Language mirroring** — send "¿Qué me recomiendas para dormir mejor?"
+   The reply must be in Spanish. Repeat with a Ukrainian message → Ukrainian reply.
+3. **Multi-turn** — send "My sister's name is Olena." then "What's her name?"
+   in the same session → it answers "Olena" (session history works).
+4. **Auto-session** — after >2h of silence a new topic starts a clean session
+   (long-term memory is Phase 3; here only the working window resets). `/reset`
+   forces a fresh session immediately.
+5. **Owner lock** — from a *different* Telegram account, message the bot →
+   no reply at all (silently ignored). Check `data/logs/mia.log` shows nothing
+   for that user.
+6. **Usage** — send `/usage` → month-to-date cost per provider with real,
+   non-zero numbers. `/start` and `/help` (6 examples) render.
+
+**Pass when:** every item above behaves as described — visible feedback within
+1s always, strangers ignored, Spanish→Spanish, `/usage` shows real costs.
 
 <!-- Subsequent gates G2–G10 appended as each phase is built. -->

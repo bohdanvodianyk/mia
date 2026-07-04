@@ -10,12 +10,14 @@ readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Bohdan" }]
 
-# Phase 0 needs only typed config. Provider SDKs (anthropic, openai,
-# python-telegram-bot, google-*) are added by the phase that first uses them,
-# per the plan's "no early scaffolding" rule.
+# Provider SDKs are added by the phase that first uses them, per the plan's
+# "no early scaffolding" rule. Phase 1 adds the Claude SDK and the Telegram
+# bot framework; openai + google-* still wait for Phases 2 and 4.
 dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "anthropic>=0.49",
+    "python-telegram-bot>=21",
 ]
 
 [project.optional-dependencies]
