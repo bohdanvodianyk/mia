@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import html
 import logging
 
-from telegram import Update
+from telegram import Message, Update
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import ContextTypes
 
 from mia.agent import core, router
 from mia.agent.prompts import system_prompt
 from mia.bot.feedback import run_with_feedback, send_reply
 from mia.memory import db as dbm
+from mia.voice import transcribe as vt
 
 log = logging.getLogger("mia.bot")
 
@@ -70,15 +73,17 @@ async def usage(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(lines))
 
 
-async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _respond(
+    message: Message, context: ContextTypes.DEFAULT_TYPE, chat_id: int,
+    text: str, modality: str,
+) -> None:
+    """Shared path for a user utterance (typed or transcribed) → Claude → reply."""
     conn = context.bot_data["conn"]
     client = context.bot_data["anthropic"]
     settings = context.bot_data["settings"]
-    chat_id = update.effective_chat.id
-    text = update.message.text
 
     session_id = dbm.get_or_start_session(conn, chat_id)
-    dbm.add_message(conn, chat_id, session_id, "user", text)
+    dbm.add_message(conn, chat_id, session_id, "user", text, modality)
 
     async def work() -> core.Reply:
         route = await router.classify(client, settings.claude_model_router, text)
@@ -102,16 +107,70 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return reply
 
     try:
-        reply, progress = await run_with_feedback(update.message, work())
+        reply, progress = await run_with_feedback(message, work())
     except Exception:
         log.exception("Failed to answer message in chat %s", chat_id)
-        await update.message.reply_text(
+        await message.reply_text(
             "Something went wrong reaching my brain just now — try again in a moment."
         )
         return
 
     dbm.add_message(conn, chat_id, session_id, "assistant", reply.text)
-    await send_reply(update.message, progress, reply.text)
+    await send_reply(message, progress, reply.text)
+
+
+async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _respond(
+        update.message, context, update.effective_chat.id,
+        update.message.text, modality="text",
+    )
+
+
+async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    conn = context.bot_data["conn"]
+    settings = context.bot_data["settings"]
+    openai_client = context.bot_data["openai"]
+    voice = update.message.voice
+
+    if voice.duration and voice.duration > vt.MAX_VOICE_SECONDS:
+        minutes = vt.MAX_VOICE_SECONDS // 60
+        await update.message.reply_text(
+            f"That note is a bit long for me — send one under {minutes} minutes "
+            "and I'll transcribe it."
+        )
+        return
+
+    try:
+        await update.message.chat.send_action(ChatAction.TYPING)
+        tg_file = await voice.get_file()
+        audio = await tg_file.download_as_bytearray()
+        transcript = await vt.transcribe(openai_client, settings.whisper_model, bytes(audio))
+    except Exception:
+        log.exception("Voice transcription failed in chat %s", update.effective_chat.id)
+        await update.message.reply_text(
+            "I couldn't transcribe that just now — mind sending it again?"
+        )
+        return
+
+    # Audio is never persisted; only cost and the transcript are recorded.
+    dbm.log_token_usage(
+        conn, "openai", settings.whisper_model, 0, 0,
+        vt.transcription_cost(voice.duration or 0), "transcription",
+    )
+
+    if not transcript:
+        await update.message.reply_text(
+            "I couldn't make out any speech in that — try again, a little closer to the mic?"
+        )
+        return
+
+    # Echo the transcript in italics so the owner can verify what I heard.
+    await update.message.reply_text(
+        f"🎤 <i>{html.escape(transcript)}</i>", parse_mode=ParseMode.HTML
+    )
+    await _respond(
+        update.message, context, update.effective_chat.id, transcript, modality="voice",
+    )
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -70,4 +70,43 @@ python -m mia.main        # starts long-polling; Ctrl-C to stop
 **Pass when:** every item above behaves as described — visible feedback within
 1s always, strangers ignored, Spanish→Spanish, `/usage` shows real costs.
 
-<!-- Subsequent gates G2–G10 appended as each phase is built. -->
+---
+
+## Gate G2 — Voice input (Phase 2)
+
+### Prerequisites
+
+- `OPENAI_API_KEY` set in `.env` (Whisper). The bot now requires it to start.
+
+### Automated pre-checks
+
+```bash
+conda activate mia
+ruff check .
+pytest
+```
+
+### Run the bot
+
+```bash
+python -m mia.main
+```
+
+### Manual acceptance script (in Telegram)
+
+1. **Ukrainian voice note** — record a ~60s voice message about scheduling, e.g.
+   "Нагадай, що завтра о третій зустріч з Оленою, і допоможи спланувати ранок."
+   → Mia echoes the transcript in *italics* (🎤), then answers in Ukrainian.
+2. **Spanish voice note** — record a short note in Spanish → transcript echoed,
+   answered in Spanish.
+3. **Verification value** — the italic echo should match what you said, so you
+   can catch mis-hearings before acting on them.
+4. **Unclear audio** — send a silent / noise-only voice note → plain "couldn't
+   make out any speech" message, no crash.
+5. **Cost** — send `/usage` → an `openai` line now appears alongside `anthropic`,
+   with a real (small) transcription cost.
+
+**Pass when:** a 60s Ukrainian scheduling note is transcribed correctly and
+answered; a Spanish note likewise; transcription cost is visible in `/usage`.
+
+<!-- Subsequent gates G3–G10 appended as each phase is built. -->

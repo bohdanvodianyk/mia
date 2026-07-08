@@ -3,7 +3,7 @@
 **Codename:** `mia` — "Mi IA" (renamed from `aide`, 2026-07-02)
 **Owner:** Bohdan
 **Builder:** Claude Code
-**Status:** Phase 1 complete — Gate G1 passed (2026-07-03)
+**Status:** Phase 2 built — Gate G2 pending live in-Telegram voice test (2026-07-03)
 **Last updated:** 2026-07-01 (v2.1 — full scope added, organized in two waves)
 **Supersedes:** v1, v2 (adds quick-capture, photo input, arXiv digest to Wave 1; promotes all backlog items to gated Wave 2 phases)
 
@@ -222,13 +222,25 @@ Each phase ends with an **acceptance gate**. Do not start the next phase until i
 
 ### Phase 2 — Voice input (0.5–1 day)
 
-- [ ] Voice handler: download OGG → OpenAI `whisper-1` → text
-- [ ] Transcript echoed back in italics (verification), then processed as a normal message
-- [ ] Language auto-detected; mixed-language notes acceptable
-- [ ] Errors (too long, unclear audio) reported plainly with a retry hint
-- [ ] Cost of each transcription logged
+- [x] Voice handler: download OGG → OpenAI `whisper-1` → text
+- [x] Transcript echoed back in italics (verification), then processed as a normal message
+- [x] Language auto-detected; mixed-language notes acceptable
+- [x] Errors (too long, unclear audio) reported plainly with a retry hint
+- [x] Cost of each transcription logged
 
-**Gate G2:** A 60-second Ukrainian voice note about scheduling is transcribed correctly and answered; a Spanish note likewise. Transcription cost visible in `/usage`.
+**Gate G2:** A 60-second Ukrainian voice note about scheduling is transcribed correctly and answered; a Spanish note likewise. Transcription cost visible in `/usage`. ⏳ **CODE VERIFIED, LIVE TEST PENDING** — transcription confirmed via an OpenAI TTS → Whisper round-trip (UA exact, ES near-exact); the in-Telegram voice-note test remains to be run by the owner.
+
+**Build log / deviations from plan:**
+- Added `openai>=1.40` to the §2 stack; runtime now requires `OPENAI_API_KEY`.
+- Audio is transcribed from an in-memory buffer and never written to disk, so
+  there is no audio file to delete (satisfies §8 "audio not stored").
+- Phase 1's message flow was refactored into a shared `_respond()` so typed and
+  voice utterances share one Claude path; voice messages are stored with
+  `modality='voice'`.
+- Whisper cost logged under provider `openai` (tokens 0; cost from clip duration
+  at $0.006/min), so `/usage` now breaks down Anthropic vs OpenAI spend.
+- Over-long notes (>10 min) and empty/unclear audio are declined with a plain
+  retry hint rather than erroring.
 
 ### Phase 3 — Memory + onboarding (1.5 days)
 

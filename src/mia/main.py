@@ -45,11 +45,12 @@ def _check(settings: Settings) -> int:
     return 0
 
 
-# Secrets the Phase 1 runtime cannot start without. Reported plainly if unset.
+# Secrets the runtime cannot start without. Reported plainly if unset.
 _REQUIRED_FOR_RUN = {
     "owner_telegram_id": "OWNER_TELEGRAM_ID (your numeric Telegram id, from @userinfobot)",
     "telegram_bot_token": "TELEGRAM_BOT_TOKEN (from @BotFather)",
     "anthropic_api_key": "ANTHROPIC_API_KEY (from console.anthropic.com)",
+    "openai_api_key": "OPENAI_API_KEY (Whisper voice transcription, from platform.openai.com)",
 }
 
 
@@ -67,6 +68,7 @@ def _run(settings: Settings) -> int:
 
     # Imported lazily so `--check` (Gate G0) runs without the provider SDKs.
     from anthropic import AsyncAnthropic
+    from openai import AsyncOpenAI
     from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
     from mia.bot import handlers
@@ -75,9 +77,10 @@ def _run(settings: Settings) -> int:
     attach_events_log(conn)
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key.get_secret_value())
+    openai_client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
 
     app = Application.builder().token(settings.telegram_bot_token.get_secret_value()).build()
-    app.bot_data.update(conn=conn, anthropic=client, settings=settings)
+    app.bot_data.update(conn=conn, anthropic=client, openai=openai_client, settings=settings)
 
     # Owner lock: filter every handler to the owner's user id. Non-owner updates
     # match no handler and are silently ignored (plan §8, non-negotiable).
@@ -87,6 +90,7 @@ def _run(settings: Settings) -> int:
     app.add_handler(CommandHandler("usage", handlers.usage, filters=owner))
     app.add_handler(CommandHandler("reset", handlers.reset, filters=owner))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & owner, handlers.on_text))
+    app.add_handler(MessageHandler(filters.VOICE & owner, handlers.on_voice))
     app.add_error_handler(handlers.on_error)
 
     log.info(
