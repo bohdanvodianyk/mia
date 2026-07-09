@@ -7,6 +7,7 @@ can slot in without reworking callers.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 # Anthropic USD pricing per 1M tokens (input, output). Verify at each phase's
@@ -64,4 +65,63 @@ async def generate(
         model=response.model,
         input_tokens=response.usage.input_tokens,
         output_tokens=response.usage.output_tokens,
+    )
+
+
+async def generate_with_tools(
+    client,
+    model: str,
+    system: str,
+    messages: list[dict],
+    tools: list[dict],
+    execute: Callable[[str, dict], str],
+    max_iterations: int = 8,
+    max_tokens: int = 1024,
+) -> Reply:
+    """Manual tool-use loop: call Claude, run any tools, feed results back.
+
+    `execute(name, input)` runs a tool synchronously and returns its string
+    result. Token usage is summed across every iteration so the whole turn is
+    costed as one Reply.
+    """
+    convo: list[dict] = list(messages)
+    total_in = total_out = 0
+    final_model = model
+    response = None
+
+    for _ in range(max_iterations):
+        response = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            tools=tools,
+            messages=convo,
+        )
+        total_in += response.usage.input_tokens
+        total_out += response.usage.output_tokens
+        final_model = response.model
+
+        if response.stop_reason != "tool_use":
+            break
+
+        # Preserve the assistant turn (with its tool_use blocks), then answer
+        # every tool call in a single user message.
+        convo.append({"role": "assistant", "content": response.content})
+        results = [
+            {
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": execute(block.name, block.input),
+            }
+            for block in response.content
+            if getattr(block, "type", None) == "tool_use"
+        ]
+        convo.append({"role": "user", "content": results})
+
+    text = _extract_text(response.content) if response is not None else ""
+    return Reply(
+        text=text or "…",
+        model=final_model,
+        input_tokens=total_in,
+        output_tokens=total_out,
     )

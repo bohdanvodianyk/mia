@@ -11,8 +11,12 @@ from telegram.ext import ContextTypes
 
 from mia.agent import core, router
 from mia.agent.prompts import system_prompt
+from mia.bot import keyboards
 from mia.bot.feedback import run_with_feedback, send_reply
+from mia.memory import context as memctx
 from mia.memory import db as dbm
+from mia.onboarding import interview
+from mia.tools import registry
 from mia.voice import transcribe as vt
 
 log = logging.getLogger("mia.bot")
@@ -34,19 +38,70 @@ Things you can ask me right now:
 • "Rewrite this to sound calmer: <paste text>"
 • "Summarise this in 3 bullets: <paste text>"
 
-Commands: /start, /help, /usage, /reset.
-Calendar, email, voice notes, and memory arrive in later phases."""
+You can also send a **voice note** — I'll transcribe it and reply. Tell me \
+things about yourself and I'll remember them across chats.
+
+Commands: /start (setup), /help, /usage, /memory (see & forget what I know), /reset.
+Calendar and email arrive in later phases."""
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    conn = context.bot_data["conn"]
+    if not dbm.is_onboarded(conn):
+        await interview.start(update, context)
+        return
+    name = dbm.get_setting(conn, "owner_name")
+    hi = f"Hi {name}" if name else "Hi"
     await update.message.reply_text(
-        "Hi, I'm Mia — your personal assistant. Send me a message in Ukrainian, "
-        "English, or Spanish and I'll help.\n\nTry /help for examples."
+        f"{hi} — I'm here. Ask me anything, send a voice note, or /help for ideas."
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(_HELP)
+
+
+async def memory_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    conn = context.bot_data["conn"]
+    facts = dbm.list_facts(conn)
+    if not facts:
+        await update.message.reply_text(
+            "I haven't saved anything about you yet. Tell me something, or run "
+            "/start to set up."
+        )
+        return
+    await update.message.reply_text(
+        "Here's what I remember. Tap 🗑 to forget an item:",
+        reply_markup=keyboards.facts_keyboard(facts),
+    )
+
+
+async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    settings = context.bot_data["settings"]
+    if update.effective_user.id != settings.owner_telegram_id:
+        await query.answer()
+        return
+    conn = context.bot_data["conn"]
+    data = query.data or ""
+    if not data.startswith(keyboards.DELETE_FACT_PREFIX):
+        await query.answer()
+        return
+    try:
+        fact_id = int(data[len(keyboards.DELETE_FACT_PREFIX):])
+    except ValueError:
+        await query.answer()
+        return
+    dbm.archive_fact(conn, fact_id)
+    await query.answer("Forgotten.")
+    facts = dbm.list_facts(conn)
+    if facts:
+        await query.edit_message_text(
+            "Here's what I remember. Tap 🗑 to forget an item:",
+            reply_markup=keyboards.facts_keyboard(facts),
+        )
+    else:
+        await query.edit_message_text("All clear — I have no saved facts now.")
 
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -84,6 +139,7 @@ async def _respond(
 
     session_id = dbm.get_or_start_session(conn, chat_id)
     dbm.add_message(conn, chat_id, session_id, "user", text, modality)
+    memory_context = memctx.build_context(conn, chat_id)
 
     async def work() -> core.Reply:
         route = await router.classify(client, settings.claude_model_router, text)
@@ -99,7 +155,13 @@ async def _respond(
             model = settings.claude_model_default
             purpose = "agent"
             history = dbm.get_history(conn, session_id, limit=_COMPLEX_HISTORY)
-        reply = await core.generate(client, model, system_prompt(), history)
+        # Both paths get memory context + tools; the router only picks the model.
+        reply = await core.generate_with_tools(
+            client, model, system_prompt(memory_context, with_tools=True), history,
+            tools=registry.MEMORY_TOOLS,
+            execute=lambda name, tool_input: registry.dispatch(name, tool_input, conn),
+            max_iterations=settings.max_tool_iterations,
+        )
         dbm.log_token_usage(
             conn, "anthropic", reply.model, reply.input_tokens, reply.output_tokens,
             reply.cost_usd, purpose,
@@ -120,6 +182,9 @@ async def _respond(
 
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if interview.is_active(context):
+        await interview.handle(update, context)
+        return
     await _respond(
         update.message, context, update.effective_chat.id,
         update.message.text, modality="text",
@@ -127,6 +192,11 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if interview.is_active(context):
+        await update.message.reply_text(
+            "Let's finish setup first — please answer the last question by text."
+        )
+        return
     conn = context.bot_data["conn"]
     settings = context.bot_data["settings"]
     openai_client = context.bot_data["openai"]

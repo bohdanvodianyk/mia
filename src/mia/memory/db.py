@@ -172,3 +172,128 @@ def usage_month_to_date(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         "ORDER BY cost_usd DESC;",
         (month_start.strftime(_TS_FORMAT),),
     ).fetchall()
+
+
+# ── Long-term memory: facts ───────────────────────────────────────
+
+def add_fact(
+    conn: sqlite3.Connection, content: str, category: str | None = None,
+    source: str = "agent",
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO facts (category, content, source) VALUES (?, ?, ?);",
+        (category, content, source),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+def list_facts(conn: sqlite3.Connection, include_archived: bool = False) -> list[sqlite3.Row]:
+    if include_archived:
+        return conn.execute("SELECT * FROM facts ORDER BY id;").fetchall()
+    return conn.execute("SELECT * FROM facts WHERE archived = 0 ORDER BY id;").fetchall()
+
+
+def search_facts(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM facts WHERE archived = 0 AND content LIKE ? ORDER BY id;",
+        (f"%{query}%",),
+    ).fetchall()
+
+
+def archive_fact(conn: sqlite3.Connection, fact_id: int) -> bool:
+    cur = conn.execute(
+        "UPDATE facts SET archived = 1 WHERE id = ? AND archived = 0;", (fact_id,)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def archive_facts_matching(conn: sqlite3.Connection, query: str) -> list[str]:
+    """Archive active facts whose text matches `query`; return what was forgotten."""
+    rows = conn.execute(
+        "SELECT id, content FROM facts WHERE archived = 0 AND content LIKE ?;",
+        (f"%{query}%",),
+    ).fetchall()
+    for r in rows:
+        conn.execute("UPDATE facts SET archived = 1 WHERE id = ?;", (r["id"],))
+    conn.commit()
+    return [r["content"] for r in rows]
+
+
+# ── Settings (key/value) ──────────────────────────────────────────
+
+def get_setting(
+    conn: sqlite3.Connection, key: str, default: str | None = None
+) -> str | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?;", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
+        (key, str(value)),
+    )
+    conn.commit()
+
+
+def is_onboarded(conn: sqlite3.Connection) -> bool:
+    return get_setting(conn, "onboarded") == "1"
+
+
+# ── Projects ──────────────────────────────────────────────────────
+
+def add_project(
+    conn: sqlite3.Connection, name: str, description: str | None = None
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO projects (name, description) VALUES (?, ?);", (name, description)
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+def list_projects(conn: sqlite3.Connection, status: str = "active") -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM projects WHERE status = ? ORDER BY id;", (status,)
+    ).fetchall()
+
+
+# ── Rolling summaries & history pruning ───────────────────────────
+
+def latest_summary(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    row = conn.execute(
+        "SELECT summary FROM summaries WHERE chat_id = ? ORDER BY id DESC LIMIT 1;",
+        (chat_id,),
+    ).fetchone()
+    return row["summary"] if row else None
+
+
+def add_summary(
+    conn: sqlite3.Connection, chat_id: int, summary: str,
+    period_start: str | None = None, period_end: str | None = None,
+) -> None:
+    conn.execute(
+        "INSERT INTO summaries (chat_id, period_start, period_end, summary) "
+        "VALUES (?, ?, ?, ?);",
+        (chat_id, period_start, period_end, summary),
+    )
+    conn.commit()
+
+
+def messages_since(
+    conn: sqlite3.Connection, chat_id: int, since_iso: str
+) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT role, content, ts FROM messages WHERE chat_id = ? AND ts >= ? "
+        "AND role IN ('user', 'assistant') ORDER BY id;",
+        (chat_id, since_iso),
+    ).fetchall()
+
+
+def prune_messages_before(conn: sqlite3.Connection, before_iso: str) -> int:
+    cur = conn.execute("DELETE FROM messages WHERE ts < ?;", (before_iso,))
+    conn.commit()
+    return cur.rowcount

@@ -20,15 +20,31 @@ Honesty:
 - If you don't know something or can't do it yet, say so plainly in one \
 sentence — never invent facts or pretend an action happened.
 
-What you can do today: chat and answer questions. Calendar, email, long-term \
-memory, and documents are being wired up in later phases. If asked for those \
-now, say they're not connected yet rather than guessing."""
+What you can do today: chat, answer questions, and remember things about the \
+owner across conversations. Calendar, email, and documents are being wired up \
+in later phases. If asked for those now, say they're not connected yet rather \
+than guessing."""
+
+_MEMORY_GUIDANCE = """\
+Memory:
+- When the owner shares a durable personal fact — a name, role, preference, \
+relationship, ongoing project, date, or context worth keeping — call \
+remember_fact to save it. Save quietly; don't announce it unless asked.
+- Use recall_facts to look something up beyond what's given below.
+- If asked to forget something, call forget_fact."""
 
 
-def system_prompt(now: datetime | None = None) -> str:
-    """The main-agent system prompt, dated for today."""
+def system_prompt(
+    memory_context: str = "", with_tools: bool = False, now: datetime | None = None
+) -> str:
+    """The main-agent system prompt: dated, with optional memory context/tools."""
     now = now or datetime.now(UTC)
-    return _SYSTEM_TEMPLATE.format(today=now.date().isoformat())
+    prompt = _SYSTEM_TEMPLATE.format(today=now.date().isoformat())
+    if with_tools:
+        prompt += "\n\n" + _MEMORY_GUIDANCE
+    if memory_context:
+        prompt += "\n\nWhat you already know about the owner:\n" + memory_context
+    return prompt
 
 
 ROUTER_SYSTEM = """\

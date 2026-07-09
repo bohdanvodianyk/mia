@@ -3,7 +3,7 @@
 **Codename:** `mia` — "Mi IA" (renamed from `aide`, 2026-07-02)
 **Owner:** Bohdan
 **Builder:** Claude Code
-**Status:** Phase 2 built — Gate G2 pending live in-Telegram voice test (2026-07-03)
+**Status:** Phase 3 built — Gate G3 pending live in-Telegram test (2026-07-08)
 **Last updated:** 2026-07-01 (v2.1 — full scope added, organized in two waves)
 **Supersedes:** v1, v2 (adds quick-capture, photo input, arXiv digest to Wave 1; promotes all backlog items to gated Wave 2 phases)
 
@@ -244,13 +244,29 @@ Each phase ends with an **acceptance gate**. Do not start the next phase until i
 
 ### Phase 3 — Memory + onboarding (1.5 days)
 
-- [ ] Tools: `remember_fact`, `recall_facts`, `forget_fact` — agent-invoked
-- [ ] Context builder: facts + rolling summary + session turns, ≤ 3k tokens
-- [ ] Nightly summarization job; raw history pruned after 7 days
-- [ ] **Onboarding interview** on first `/start`: timezone, work context, 1–3 active projects, briefing time, quiet hours → seeds `facts`, `projects`, `settings`
-- [ ] `/memory` command: list stored facts with delete buttons (transparency + control)
+- [x] Tools: `remember_fact`, `recall_facts`, `forget_fact` — agent-invoked
+- [x] Context builder: facts + rolling summary + session turns, ≤ 3k tokens
+- [x] Nightly summarization job; raw history pruned after 7 days
+- [x] **Onboarding interview** on first `/start`: timezone, work context, 1–3 active projects, briefing time, quiet hours → seeds `facts`, `projects`, `settings`
+- [x] `/memory` command: list stored facts with delete buttons (transparency + control)
 
-**Gate G3:** Fresh DB → onboarding completes in < 5 min and the assistant immediately answers "what do you know about me?" correctly. A fact told casually on day 1 is recalled after `/reset` on day 2. `/memory` shows and deletes facts.
+**Gate G3:** Fresh DB → onboarding completes in < 5 min and the assistant immediately answers "what do you know about me?" correctly. A fact told casually on day 1 is recalled after `/reset` on day 2. `/memory` shows and deletes facts. ⏳ **CODE VERIFIED, LIVE TEST PENDING** — tool-loop verified live (agent auto-called `remember_fact`; a fact stored in one session was recalled from injected context in a fresh session); in-Telegram onboarding/`/memory` test remains for the owner.
+
+**Build log / deviations from plan:**
+- First phase with **agent tool use**: `agent/core.py` gains `generate_with_tools`,
+  a manual Claude tool-use loop (max 8 iterations, usage summed across the turn).
+  Both router paths (Haiku/Sonnet) now get memory tools + injected context; the
+  router still only picks the model.
+- Memory is **injected and tool-backed**: the context builder always injects
+  known facts/projects/summary (≤3k tokens) so recall is automatic; the three
+  tools let the agent write/search/forget. Added `apscheduler` to §2 stack.
+- Onboarding is a **deterministic scripted interview** (not LLM-driven) held in
+  `context.user_data`, persisted to DB only on completion — reliable seeding and
+  a guaranteed short flow. Timezone/time answers are normalized; "skip" allowed.
+- Nightly job (03:30 UTC via APScheduler in `post_init`) folds the last 7 days
+  into a rolling summary, then prunes messages older than 7 days.
+- `/memory` uses an inline keyboard with per-fact 🗑 delete buttons (callback
+  archives the fact and re-renders the list).
 
 ### Phase 4 — Google OAuth + Calendar (1.5 days)
 

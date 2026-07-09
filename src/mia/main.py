@@ -69,9 +69,16 @@ def _run(settings: Settings) -> int:
     # Imported lazily so `--check` (Gate G0) runs without the provider SDKs.
     from anthropic import AsyncAnthropic
     from openai import AsyncOpenAI
-    from telegram.ext import Application, CommandHandler, MessageHandler, filters
+    from telegram.ext import (
+        Application,
+        CallbackQueryHandler,
+        CommandHandler,
+        MessageHandler,
+        filters,
+    )
 
     from mia.bot import handlers
+    from mia.jobs import maintenance
 
     conn = db_module.init_db(settings.db_path)
     attach_events_log(conn)
@@ -79,7 +86,21 @@ def _run(settings: Settings) -> int:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key.get_secret_value())
     openai_client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
 
-    app = Application.builder().token(settings.telegram_bot_token.get_secret_value()).build()
+    async def _post_init(application: Application) -> None:
+        maintenance.start_scheduler(application)
+
+    async def _post_shutdown(application: Application) -> None:
+        scheduler = application.bot_data.get("scheduler")
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+
+    app = (
+        Application.builder()
+        .token(settings.telegram_bot_token.get_secret_value())
+        .post_init(_post_init)
+        .post_shutdown(_post_shutdown)
+        .build()
+    )
     app.bot_data.update(conn=conn, anthropic=client, openai=openai_client, settings=settings)
 
     # Owner lock: filter every handler to the owner's user id. Non-owner updates
@@ -88,9 +109,11 @@ def _run(settings: Settings) -> int:
     app.add_handler(CommandHandler("start", handlers.start, filters=owner))
     app.add_handler(CommandHandler("help", handlers.help_command, filters=owner))
     app.add_handler(CommandHandler("usage", handlers.usage, filters=owner))
+    app.add_handler(CommandHandler("memory", handlers.memory_command, filters=owner))
     app.add_handler(CommandHandler("reset", handlers.reset, filters=owner))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & owner, handlers.on_text))
     app.add_handler(MessageHandler(filters.VOICE & owner, handlers.on_voice))
+    app.add_handler(CallbackQueryHandler(handlers.on_callback))
     app.add_error_handler(handlers.on_error)
 
     log.info(

@@ -109,4 +109,42 @@ python -m mia.main
 **Pass when:** a 60s Ukrainian scheduling note is transcribed correctly and
 answered; a Spanish note likewise; transcription cost is visible in `/usage`.
 
-<!-- Subsequent gates G3–G10 appended as each phase is built. -->
+---
+
+## Gate G3 — Memory + onboarding (Phase 3)
+
+### Automated pre-checks
+
+```bash
+conda activate mia
+ruff check .
+pytest
+```
+
+### Reset to a fresh brain (to see onboarding)
+
+```bash
+rm -f data/mia.db data/mia.db-wal data/mia.db-shm   # wipes memory; keeps .env
+python -m mia.main
+```
+
+### Manual acceptance script (in Telegram)
+
+1. **Onboarding** — send `/start` on the fresh DB → Mia runs a short interview
+   (name, timezone, work, projects, briefing time, quiet hours). Answer them
+   (or “skip”). It should finish in well under 5 minutes with a recap.
+2. **Immediate recall** — send "what do you know about me?" → it lists what you
+   just told it (name, work, projects).
+3. **Casual fact, cross-session recall** — tell it something in passing, e.g.
+   "By the way, my sister's name is Olena." Then `/reset` (new session) and ask
+   "what's my sister's name?" → answers "Olena". (This is the day-1→day-2 test.)
+4. **/memory** — send `/memory` → a list of saved facts, each with a 🗑 button.
+   Tap one → it's forgotten and the list refreshes. Confirm with "what do you
+   know about me?" that it's gone.
+5. **Second /start** — send `/start` again → a normal greeting (no re-onboarding).
+
+**Pass when:** fresh DB → onboarding completes < 5 min and "what do you know
+about me?" is correct; a casually-mentioned fact survives `/reset`; `/memory`
+shows and deletes facts.
+
+<!-- Subsequent gates G4–G10 appended as each phase is built. -->
