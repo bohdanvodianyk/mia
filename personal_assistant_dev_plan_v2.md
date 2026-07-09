@@ -3,7 +3,7 @@
 **Codename:** `mia` — "Mi IA" (renamed from `aide`, 2026-07-02)
 **Owner:** Bohdan
 **Builder:** Claude Code
-**Status:** Phase 3 built — Gate G3 pending live in-Telegram test (2026-07-08)
+**Status:** Phase 3 built + web search added — Gate G3 pending live test (2026-07-08)
 **Last updated:** 2026-07-01 (v2.1 — full scope added, organized in two waves)
 **Supersedes:** v1, v2 (adds quick-capture, photo input, arXiv digest to Wave 1; promotes all backlog items to gated Wave 2 phases)
 
@@ -267,6 +267,24 @@ Each phase ends with an **acceptance gate**. Do not start the next phase until i
   into a rolling summary, then prunes messages older than 7 days.
 - `/memory` uses an inline keyboard with per-fact 🗑 delete buttons (callback
   archives the fact and re-renders the list).
+
+### Added — Web search (2026-07-08, owner request; deviation from Wave 1 order)
+
+**Rationale:** owner asked for live-information lookups before Phase 4. Cheap to
+add — Claude's server-side web-search tool needs no new dependency.
+
+- [x] `web_search` server tool added to the agent's toolset, variant chosen per
+  model (`web_search_20260209` dynamic filtering on Sonnet 4.6; basic
+  `web_search_20250305` on Haiku 4.5).
+- [x] Tool-use loop extended for server tools: new `pause_turn` continuation
+  branch alongside the client-tool (`tool_use`) branch.
+- [x] Web-search surcharge ($10/1k requests) counted via
+  `usage.server_tool_use.web_search_requests` and folded into `/usage` cost.
+- [x] System prompt guides the agent to search only for current/live info;
+  router biases current-info queries to the Sonnet path.
+- Verified live on both models (real Bitcoin price, 1–2 searches each). Note:
+  the Sonnet dynamic variant runs code execution under the hood (~$0.10/query),
+  so `max_uses` is capped at 5/turn; the day budget hard-stop lands in Phase 10.
 
 ### Phase 4 — Google OAuth + Calendar (1.5 days)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from mia.agent import core
 from mia.agent.prompts import ROUTER_SYSTEM, system_prompt
 from mia.bot.feedback import _split
+from mia.tools import registry
 
 
 def test_cost_sonnet():
@@ -44,3 +45,25 @@ def test_system_prompt_covers_languages_and_length():
 
 def test_router_prompt_labels():
     assert "simple" in ROUTER_SYSTEM and "complex" in ROUTER_SYSTEM
+
+
+def test_web_search_tool_variant_by_model():
+    assert registry.web_search_tool("claude-sonnet-4-6")["type"] == "web_search_20260209"
+    assert (
+        registry.web_search_tool("claude-haiku-4-5-20251001")["type"]
+        == "web_search_20250305"
+    )
+    assert registry.web_search_tool("claude-sonnet-4-6")["name"] == "web_search"
+
+
+def test_reply_cost_includes_web_search_surcharge():
+    r = core.Reply(
+        text="x", model="claude-sonnet-4-6", input_tokens=0, output_tokens=0,
+        web_search_requests=3,
+    )
+    assert r.cost_usd == 3 * core.WEB_SEARCH_USD_PER_REQUEST
+
+
+def test_system_prompt_mentions_web_when_tools():
+    assert "web_search" in system_prompt(with_tools=True)
+    assert "web_search" not in system_prompt(with_tools=False)

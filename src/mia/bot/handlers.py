@@ -37,6 +37,7 @@ Things you can ask me right now:
 • "¿Cómo digo 'te aviso cuando lo tenga listo' de forma más formal?"
 • "Rewrite this to sound calmer: <paste text>"
 • "Summarise this in 3 bullets: <paste text>"
+• "What's the latest on <topic>?" — I can search the web for current info.
 
 You can also send a **voice note** — I'll transcribe it and reply. Tell me \
 things about yourself and I'll remember them across chats.
@@ -156,9 +157,11 @@ async def _respond(
             purpose = "agent"
             history = dbm.get_history(conn, session_id, limit=_COMPLEX_HISTORY)
         # Both paths get memory context + tools; the router only picks the model.
+        # Web search uses the best variant for the chosen model.
+        tools = [*registry.MEMORY_TOOLS, registry.web_search_tool(model)]
         reply = await core.generate_with_tools(
             client, model, system_prompt(memory_context, with_tools=True), history,
-            tools=registry.MEMORY_TOOLS,
+            tools=tools,
             execute=lambda name, tool_input: registry.dispatch(name, tool_input, conn),
             max_iterations=settings.max_tool_iterations,
         )

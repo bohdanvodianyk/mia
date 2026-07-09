@@ -79,6 +79,25 @@ MEMORY_TOOLS = [
 ]
 
 
+# Models that support the newer web-search tool (dynamic filtering). Others fall
+# back to the basic variant. Matched by substring against the configured id.
+_DYNAMIC_SEARCH_MODELS = ("opus-4-6", "opus-4-7", "opus-4-8", "sonnet-4-6", "sonnet-5")
+
+
+def web_search_tool(model: str, max_uses: int = 5) -> dict:
+    """Server-side web search, using the best variant the model supports.
+
+    Server tools run on Anthropic's infrastructure — declared here, executed by
+    the API, never dispatched locally. `max_uses` caps searches per turn (cost).
+    """
+    variant = (
+        "web_search_20260209"
+        if any(tag in model for tag in _DYNAMIC_SEARCH_MODELS)
+        else "web_search_20250305"
+    )
+    return {"type": variant, "name": "web_search", "max_uses": max_uses}
+
+
 def dispatch(name: str, tool_input: dict, conn: sqlite3.Connection) -> str:
     """Execute a tool by name, returning a string result for the agent."""
     try:
