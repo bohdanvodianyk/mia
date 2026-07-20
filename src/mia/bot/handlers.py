@@ -154,11 +154,16 @@ async def _respond(
             history = dbm.get_history(conn, session_id, limit=_SIMPLE_HISTORY)
         else:
             model = settings.claude_model_default
-            purpose = "agent"
+            purpose = "search" if route.needs_web else "agent"
             history = dbm.get_history(conn, session_id, limit=_COMPLEX_HISTORY)
-        # Both paths get memory context + tools; the router only picks the model.
-        # Web search uses the best variant for the chosen model.
-        tools = [*registry.MEMORY_TOOLS, registry.web_search_tool(model)]
+
+        # Every turn gets memory context + memory tools. web_search is attached
+        # ONLY when the router says the question needs live information: its
+        # definition costs ~3.9k input tokens per call, which quadrupled the
+        # price of ordinary chat when it was always on.
+        tools = list(registry.MEMORY_TOOLS)
+        if route.needs_web:
+            tools.append(registry.web_search_tool(model))
         reply = await core.generate_with_tools(
             client, model, system_prompt(memory_context, with_tools=True), history,
             tools=tools,

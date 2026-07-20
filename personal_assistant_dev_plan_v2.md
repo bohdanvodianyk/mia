@@ -3,7 +3,7 @@
 **Codename:** `mia` — "Mi IA" (renamed from `aide`, 2026-07-02)
 **Owner:** Bohdan
 **Builder:** Claude Code
-**Status:** Phase 3 built + web search added — Gate G3 pending live test (2026-07-08)
+**Status:** Phase 3 complete — Gate G3 passed (2026-07-20); web search added + cost-tuned
 **Last updated:** 2026-07-01 (v2.1 — full scope added, organized in two waves)
 **Supersedes:** v1, v2 (adds quick-capture, photo input, arXiv digest to Wave 1; promotes all backlog items to gated Wave 2 phases)
 
@@ -250,7 +250,7 @@ Each phase ends with an **acceptance gate**. Do not start the next phase until i
 - [x] **Onboarding interview** on first `/start`: timezone, work context, 1–3 active projects, briefing time, quiet hours → seeds `facts`, `projects`, `settings`
 - [x] `/memory` command: list stored facts with delete buttons (transparency + control)
 
-**Gate G3:** Fresh DB → onboarding completes in < 5 min and the assistant immediately answers "what do you know about me?" correctly. A fact told casually on day 1 is recalled after `/reset` on day 2. `/memory` shows and deletes facts. ⏳ **CODE VERIFIED, LIVE TEST PENDING** — tool-loop verified live (agent auto-called `remember_fact`; a fact stored in one session was recalled from injected context in a fresh session); in-Telegram onboarding/`/memory` test remains for the owner.
+**Gate G3:** Fresh DB → onboarding completes in < 5 min and the assistant immediately answers "what do you know about me?" correctly. A fact told casually on day 1 is recalled after `/reset` on day 2. `/memory` shows and deletes facts. ✅ **PASSED 2026-07-20** — verified in Telegram and confirmed against the DB: onboarding seeded name/timezone (`Cdmx`→`America/Mexico_City`)/work/3 projects; the agent saved facts unprompted from natural Ukrainian conversation (`source=agent`) and recalled them; a fact deleted via `/memory`'s 🗑 button was archived; `/reset` closed the session. Voice input and web search exercised in the same run.
 
 **Build log / deviations from plan:**
 - First phase with **agent tool use**: `agent/core.py` gains `generate_with_tools`,
@@ -282,9 +282,22 @@ add — Claude's server-side web-search tool needs no new dependency.
   `usage.server_tool_use.web_search_requests` and folded into `/usage` cost.
 - [x] System prompt guides the agent to search only for current/live info;
   router biases current-info queries to the Sonnet path.
-- Verified live on both models (real Bitcoin price, 1–2 searches each). Note:
-  the Sonnet dynamic variant runs code execution under the hood (~$0.10/query),
-  so `max_uses` is capped at 5/turn; the day budget hard-stop lands in Phase 10.
+- Verified live on both models (real Bitcoin price, 1–2 searches each), and in
+  real use in Ukrainian (found a physical shop + address in CDMX).
+
+**Cost fix (2026-07-20) — web_search is now attached conditionally.**
+Measured: the `web_search_20260209` definition costs **~3.9k input tokens on
+every call** (it silently bundles `code_execution_20260120` — surfaced by
+`count_tokens` rejecting both). Attaching it to every message quadrupled the
+price of ordinary chat.
+- Router is now 3-way (`search` / `simple` / `complex`, biased to `search` when
+  unsure); only `search` attaches the web tool. Unrecognized output → `complex`.
+- Measured per-message input: memory tools only 1,329 tok; +basic search 3,039;
+  +dynamic search 5,205.
+- Result: chat turns −57% (Haiku), reasoning turns −74% (Sonnet); search turns
+  unchanged. Routing verified 8/8 across UA/EN/ES.
+- Remaining lever if search gets frequent: a search turn is ~$0.085, mostly
+  *result* tokens — could drop `max_uses` 5→2 or use the basic variant.
 
 ### Phase 4 — Google OAuth + Calendar (1.5 days)
 

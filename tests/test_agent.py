@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mia.agent import core
+from mia.agent import core, router
 from mia.agent.prompts import ROUTER_SYSTEM, system_prompt
 from mia.bot.feedback import _split
 from mia.tools import registry
@@ -44,7 +44,27 @@ def test_system_prompt_covers_languages_and_length():
 
 
 def test_router_prompt_labels():
-    assert "simple" in ROUTER_SYSTEM and "complex" in ROUTER_SYSTEM
+    for label in ("simple", "complex", "search"):
+        assert label in ROUTER_SYSTEM
+
+
+def test_parse_label_three_way():
+    assert router.parse_label("search") == "search"
+    assert router.parse_label("simple") == "simple"
+    assert router.parse_label("complex") == "complex"
+
+
+def test_parse_label_defaults_to_complex():
+    # Unrecognized / empty router output must not silently become "simple".
+    assert router.parse_label("") == "complex"
+    assert router.parse_label("banana") == "complex"
+    assert router.parse_label(None) == "complex"
+
+
+def test_only_search_route_gets_web_tool():
+    assert router.Route("search", "m", 0, 0).needs_web is True
+    assert router.Route("simple", "m", 0, 0).needs_web is False
+    assert router.Route("complex", "m", 0, 0).needs_web is False
 
 
 def test_web_search_tool_variant_by_model():

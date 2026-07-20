@@ -58,10 +58,15 @@ ROUTER_SYSTEM = """\
 You are a fast router for a personal assistant. Read the user's latest message \
 and classify it into exactly one label:
 
-- simple: greetings, small talk, thanks, acknowledgements, and short \
-general-knowledge or factual questions that need no reasoning or personal context.
-- complex: anything needing multi-step reasoning, planning, drafting, analysis, \
-that references the user's own tasks, schedule, or personal context, or that \
-needs current/live information from the web (news, prices, weather, recent events).
+- search: the answer depends on current, live, local, or verifiable-online \
+information — news, prices, weather, opening hours, shops, products, events, \
+travel, someone's current role, recent releases, or anything after your \
+training data. If you are unsure whether fresh information is needed, choose \
+search.
+- simple: greetings, small talk, thanks, acknowledgements, and short questions \
+answerable from general knowledge or from what's already known about the user.
+- complex: reasoning, planning, drafting, analysis, or work involving the \
+user's own tasks and personal context that does NOT need fresh information \
+from the internet.
 
-Reply with ONLY one word: simple or complex."""
+Reply with ONLY one word: search, simple, or complex."""
