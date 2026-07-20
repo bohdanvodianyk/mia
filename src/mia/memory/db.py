@@ -201,6 +201,15 @@ def search_facts(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def update_fact(conn: sqlite3.Connection, fact_id: int, content: str) -> bool:
+    """Rewrite a stored fact in place (e.g. normalizing it to English)."""
+    cur = conn.execute(
+        "UPDATE facts SET content = ? WHERE id = ?;", (content, fact_id)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
 def archive_fact(conn: sqlite3.Connection, fact_id: int) -> bool:
     cur = conn.execute(
         "UPDATE facts SET archived = 1 WHERE id = ? AND archived = 0;", (fact_id,)

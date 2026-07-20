@@ -27,6 +27,20 @@ def test_add_list_archive_facts(conn):
     assert dbm.archive_fact(conn, fid) is False  # already archived
 
 
+def test_update_fact_normalizes_in_place(conn):
+    fid = dbm.add_fact(conn, "Дівчина звати Марина.", category="relationship")
+    assert dbm.update_fact(conn, fid, "The owner's girlfriend is Марина (Maryna).")
+    assert dbm.list_facts(conn)[0]["content"].startswith("The owner's girlfriend")
+    assert dbm.update_fact(conn, 999, "nope") is False
+
+
+def test_remember_fact_tool_asks_for_english():
+    # The contract the model sees must state the storage language.
+    tool = next(t for t in registry.MEMORY_TOOLS if t["name"] == "remember_fact")
+    assert "English" in tool["description"]
+    assert "English" in tool["input_schema"]["properties"]["content"]["description"]
+
+
 def test_search_and_forget_matching(conn):
     dbm.add_fact(conn, "Sister is Olena.")
     dbm.add_fact(conn, "Likes espresso.")

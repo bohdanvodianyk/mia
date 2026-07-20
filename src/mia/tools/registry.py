@@ -24,14 +24,19 @@ MEMORY_TOOLS = [
             "Save a durable personal fact about the owner — a name, role, "
             "preference, relationship, ongoing project, date, or context worth "
             "keeping across conversations. Save quietly; do not announce it "
-            "unless the owner asks. Do not save transient chit-chat."
+            "unless the owner asks. Do not save transient chit-chat. Always "
+            "write the fact in English, whatever language the conversation is in."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "content": {
                     "type": "string",
-                    "description": "The fact, as a short self-contained sentence.",
+                    "description": (
+                        "The fact as a short self-contained sentence, written in "
+                        "English regardless of the conversation's language. Keep "
+                        "proper nouns (names, places) in their original spelling."
+                    ),
                 },
                 "category": {
                     "type": "string",
